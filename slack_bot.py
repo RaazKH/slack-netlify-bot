@@ -33,11 +33,11 @@ def list_site_deploys():
     url = f"https://api.netlify.com/api/v1/sites/{SITE_NAME}/deploys?per_page={maxDeploys}"
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
-        print("Yay!")
+        print("List got!")
         return response.text
     else:
         print(response.status_code)
-        return "error"
+        return "List get error!"
 
 
 def lock_netlify_site(deploy_id):
@@ -45,9 +45,11 @@ def lock_netlify_site(deploy_id):
     url = f"https://api.netlify.com/api/v1/deploys/{deploy_id}/lock"
     response = requests.post(url, headers=headers)
     if response.status_code == 200:
-        print("Site locked successfully.")
+        print("Locked!")
+        return "locked"
     else:
-        print("Locking the site failed.")
+        print("Site lock error!")
+        return "error"
 
 @app.route('/list-deploys', methods=['GET', 'POST'])
 def listDeploys():
@@ -83,16 +85,30 @@ def listDeploys():
 
 @app.route('/lock', methods=['POST'])
 def lock():
-    client.chat_postMessage(channel="#testc", text="Starting lock!")
+    data = request.form
+    channel_id = data.get('channel_id')
     siteList = list_site_deploys()
     if siteList == "error":
-        client.chat_postMessage(channel="#testc", text="Error in list response!")
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
     else:
         response_json = json.loads(siteList)
-        entry1 = response_json[0]
-        deploy_id = entry1['id']
-        lock_netlify_site(deploy_id)
-        client.chat_postMessage(channel="#testc", text="Site locked!")
+        deploy_id = 'null'
+        for entry in response_json[:maxDeploys]:
+            if entry['locked'] == True:
+                client.chat_postMessage(channel=channel_id, text=f":robot_face: Site is already locked at Build ID = {entry['id']} :robot_face:")
+                return Response(), 200
+
+            if entry['state'] != 'ready':
+                continue
+
+            if deploy_id == 'null':
+                deploy_id = entry['id']
+
+        message = lock_netlify_site(deploy_id)
+        if message == "locked":
+            client.chat_postMessage(channel=channel_id, text=":robot_face: Site locked! :robot_face:")
+        else:
+            client.chat_postMessage(channel=channel_id, text=":robot_face: Not locked - ERROR! :robot_face:")
     return Response(), 200
 
 
