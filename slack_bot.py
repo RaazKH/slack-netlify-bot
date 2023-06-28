@@ -62,6 +62,17 @@ def unlock_netlify_site(deploy_id):
         print("Site unlock error!")
         return "unlock-error"
 
+def rollback_netlify_site():
+    headers = {'Authorization': f"Bearer {API_TOKEN}"}
+    url = f"https://api.netlify.com/api/v1/sites/{SITE_NAME}/rollback"
+    response = requests.put(url, headers=headers)
+    if response.status_code == 204:
+        print("Rolled back!")
+        return "roll"
+    else:
+        print("Site unlock error!")
+        return "roll-error"
+
 @app.route('/list-deploys', methods=['GET', 'POST'])
 def listDeploys():
     data = request.form
@@ -85,10 +96,10 @@ def listDeploys():
     response_json = json.loads(siteList)
     message = f":robot_face: *List of {numOfDeploys} most recent deploys to Netlify:* :robot_face:\n\n---\n\n"
     for entry in response_json[:numOfDeploys]:
+        time_stamp = entry['created_at']
         deploy_id = entry['id']
         status = entry['state']
         deploy_url = entry['deploy_url']
-        time_stamp = entry['created_at']
         message += f"Created: {time_stamp}\nBuild ID: {deploy_id}\nStatus: {status}\nDeploy Preview Link: {deploy_url}\n\n---\n\n"
     client.chat_postMessage(channel=channel_id, text=message)
     return Response(), 200
@@ -150,6 +161,16 @@ def unlock():
         client.chat_postMessage(channel=channel_id, text=":robot_face: Not unlocked - ERROR! :robot_face:")
     return Response(), 200
 
+@app.route('/rollback', methods=['POST'])
+def rollback():
+    data = request.form
+    channel_id = data.get('channel_id')
+    message = rollback_netlify_site()
+    if message == "roll":
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Site rolled back! :robot_face:")
+    else:
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Not rolled back - ERROR! :robot_face:")
+    return Response(), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
