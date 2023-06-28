@@ -32,13 +32,16 @@ maxDeploys = 5
 def list_site_deploys():
     headers = {'Authorization': f"Bearer {API_TOKEN}"}
     url = f"https://api.netlify.com/api/v1/sites/{SITE_NAME}/deploys?per_page={maxDeploys}"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        print("List got!")
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an exception for non-2xx status codes
         return response.text
-    else:
-        print(response.status_code)
-        return "error"
+    except requests.exceptions.RequestException as e:
+        print("Error in list_site_deploys:", e)
+        return None
+    except (json.JSONDecodeError, KeyError) as e:
+        print("Error parsing API response:", e)
+        return None
 
 
 def lock_netlify_site(deploy_id):
@@ -102,7 +105,7 @@ def listDeploys():
             numOfDeploys = maxDeploys
 
     siteList = list_site_deploys()
-    if siteList == "error":
+    if siteList is None:
         client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
         return Response(), 200
 
@@ -123,7 +126,7 @@ def lock():
     data = request.form
     channel_id = data.get('channel_id')
     siteList = list_site_deploys()
-    if siteList == "error":
+    if siteList is None:
         client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
         return Response(), 200
 
@@ -152,7 +155,7 @@ def unlock():
     data = request.form
     channel_id = data.get('channel_id')
     siteList = list_site_deploys()
-    if siteList == "error":
+    if siteList is None:
         client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
         return Response(), 200
 
@@ -197,7 +200,7 @@ def setLive():
             return Response(), 200
 
     siteList = list_site_deploys()
-    if siteList == "error":
+    if siteList is None:
         client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
         return Response(), 200
 
