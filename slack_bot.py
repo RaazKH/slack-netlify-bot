@@ -37,7 +37,7 @@ def list_site_deploys():
         return response.text
     else:
         print(response.status_code)
-        return "List get error!"
+        return "error"
 
 
 def lock_netlify_site(deploy_id):
@@ -49,7 +49,18 @@ def lock_netlify_site(deploy_id):
         return "locked"
     else:
         print("Site lock error!")
-        return "error"
+        return "lock-error"
+
+def unlock_netlify_site(deploy_id):
+    headers = {'Authorization': f"Bearer {API_TOKEN}"}
+    url = f"https://api.netlify.com/api/v1/deploys/{deploy_id}/unlock"
+    response = requests.post(url, headers=headers)
+    if response.status_code == 200:
+        print("Unlocked!")
+        return "unlocked"
+    else:
+        print("Site unlock error!")
+        return "unlock-error"
 
 @app.route('/list-deploys', methods=['GET', 'POST'])
 def listDeploys():
@@ -90,25 +101,53 @@ def lock():
     siteList = list_site_deploys()
     if siteList == "error":
         client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
+        return Response(), 200
+
+    response_json = json.loads(siteList)
+    deploy_id = 'null'
+    for entry in response_json[:maxDeploys]:
+        if entry['locked'] == True:
+            client.chat_postMessage(channel=channel_id, text=f":robot_face: Site is already locked at Build ID = {entry['id']} :robot_face:")
+            return Response(), 200
+
+        if entry['state'] != 'ready':
+            continue
+
+        if deploy_id == 'null':
+            deploy_id = entry['id']
+
+    message = lock_netlify_site(deploy_id)
+    if message == "locked":
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Site locked! :robot_face:")
     else:
-        response_json = json.loads(siteList)
-        deploy_id = 'null'
-        for entry in response_json[:maxDeploys]:
-            if entry['locked'] == True:
-                client.chat_postMessage(channel=channel_id, text=f":robot_face: Site is already locked at Build ID = {entry['id']} :robot_face:")
-                return Response(), 200
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Not locked - ERROR! :robot_face:")
+    return Response(), 200
 
-            if entry['state'] != 'ready':
-                continue
+@app.route('/unlock', methods=['POST'])
+def unlock():
+    data = request.form
+    channel_id = data.get('channel_id')
+    siteList = list_site_deploys()
+    if siteList == "error":
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Error in list_site_deploys response! :robot_face:")
+        return Response(), 200
 
-            if deploy_id == 'null':
-                deploy_id = entry['id']
+    response_json = json.loads(siteList)
+    deploy_id = 'null'
+    for entry in response_json[:maxDeploys]:
+        if entry['locked'] == True:
+            deploy_id = entry['id']
+            break
 
-        message = lock_netlify_site(deploy_id)
-        if message == "locked":
-            client.chat_postMessage(channel=channel_id, text=":robot_face: Site locked! :robot_face:")
-        else:
-            client.chat_postMessage(channel=channel_id, text=":robot_face: Not locked - ERROR! :robot_face:")
+    if deploy_id == 'null':
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Site is not currently locked! :robot_face:")
+        return Response(), 200
+
+    message = unlock_netlify_site(deploy_id)
+    if message == "unlocked":
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Site unlocked! :robot_face:")
+    else:
+        client.chat_postMessage(channel=channel_id, text=":robot_face: Not unlocked - ERROR! :robot_face:")
     return Response(), 200
 
 
